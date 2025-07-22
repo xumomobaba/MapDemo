@@ -105,6 +105,59 @@ function App() {
     }
   }
 
+  // 直接处理地址输入和路线规划
+  const handleAddressRouting = async () => {
+    if (!fromAddress.trim() || !toAddress.trim()) {
+      alert('请输入起点和终点地址')
+      return
+    }
+
+    setLoading(true)
+    try {
+      // 同时获取起点和终点的坐标
+      const [fromResult, toResult] = await Promise.all([
+        geocodeAddress(fromAddress),
+        geocodeAddress(toAddress)
+      ])
+
+      // 更新坐标
+      const fromLat = fromResult.lat.toString()
+      const fromLon = fromResult.lon.toString()
+      const toLat = toResult.lat.toString()
+      const toLon = toResult.lon.toString()
+      
+      setFromLat(fromLat)
+      setFromLon(fromLon)
+      setToLat(toLat)
+      setToLon(toLon)
+      
+      // 直接计算路线
+      const straightDistance = calculateDistance(Number(fromLat), Number(fromLon), Number(toLat), Number(toLon))
+      setDistance(straightDistance.toFixed(2))
+      setElevation(getElevation(Number(fromLat), Number(fromLon)))
+      
+      if (routeType === 'road') {
+        // 获取真实的车辆导航路径
+        const routeData = await getRoadRoute(fromLat, fromLon, toLat, toLon)
+        setRouteCoords(routeData.coordinates)
+        setRouteInfo({
+          roadDistance: routeData.distance,
+          duration: routeData.duration,
+          instructions: routeData.instructions
+        })
+      } else {
+        // 直线路径
+        setRouteCoords([[Number(fromLat), Number(fromLon)], [Number(toLat), Number(toLon)]])
+        setRouteInfo(null)
+      }
+      
+    } catch (error) {
+      alert(`路线规划失败: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // 获取真实路径规划（使用免费的路径规划服务）
   async function getRoadRoute(fromLat, fromLon, toLat, toLon) {
     try {
@@ -265,47 +318,32 @@ function App() {
                 />
               </label><br />
               
-              <button 
-                style={{marginTop:10, padding: '8px 16px', marginRight: '10px'}} 
-                onClick={handleAddressGeocode}
-                disabled={geocodeLoading || loading}
-              >
-                {geocodeLoading ? '地址解析中...' : '🔍 解析地址'}
-              </button>
+              <div className="route-type-selector" style={{marginTop: '15px'}}>
+                <label style={{marginRight: '15px'}}>
+                  <input 
+                    type="radio" 
+                    value="straight" 
+                    checked={routeType === 'straight'} 
+                    onChange={e => setRouteType(e.target.value)}
+                  /> 直线路径
+                </label>
+                <label>
+                  <input 
+                    type="radio" 
+                    value="road" 
+                    checked={routeType === 'road'} 
+                    onChange={e => setRouteType(e.target.value)}
+                  /> 车辆导航
+                </label>
+              </div>
               
-              {/* 如果已经有坐标数据，显示路径类型选择和规划按钮 */}
-               {fromLat && fromLon && toLat && toLon && (
-                 <div style={{marginTop: '15px', padding: '10px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px'}}>
-                   <div style={{marginBottom: '10px', fontSize: '14px', color: '#fff'}}>选择路径类型：</div>
-                   <div style={{marginBottom: '10px'}}>
-                     <label style={{marginRight: '15px', color: '#fff', fontSize: '13px'}}>
-                       <input 
-                         type="radio" 
-                         value="straight" 
-                         checked={routeType === 'straight'} 
-                         onChange={e => setRouteType(e.target.value)}
-                         style={{marginRight: '5px'}}
-                       /> 直线路径
-                     </label>
-                     <label style={{color: '#fff', fontSize: '13px'}}>
-                       <input 
-                         type="radio" 
-                         value="road" 
-                         checked={routeType === 'road'} 
-                         onChange={e => setRouteType(e.target.value)}
-                         style={{marginRight: '5px'}}
-                       /> 车辆导航
-                     </label>
-                   </div>
-                   <button 
-                     style={{padding: '8px 16px', width: '100%'}} 
-                     onClick={handleCalc}
-                     disabled={loading}
-                   >
-                     {loading ? '规划中...' : '🗺️ 规划路线'}
-                   </button>
-                 </div>
-               )}
+              <button 
+                style={{marginTop:10, padding: '8px 16px'}} 
+                onClick={handleAddressRouting}
+                disabled={loading}
+              >
+                {loading ? '规划中...' : '🗺️ 规划路线'}
+              </button>
             </>
           ) : (
             // 坐标输入模式
